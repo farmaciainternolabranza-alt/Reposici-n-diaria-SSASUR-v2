@@ -12,18 +12,28 @@ function dateKey(d){return d?`${d.getFullYear()}-${String(d.getMonth()+1).padSta
 function fmtDate(d){return d?d.toLocaleDateString("es-CL"):"No detectada"}
 function todayChile(){return new Intl.DateTimeFormat("en-CA",{timeZone:"America/Santiago",year:"numeric",month:"2-digit",day:"2-digit"}).format(new Date())}
 function findDate(text){const m=String(text).match(/obtenido\s*:\s*(\d{1,2}[\/.-]\d{1,2}[\/.-]\d{4})/i);return m?parseDate(m[1]):null}
+function detectDelimiter(text){
+ const lines=text.split(/\r?\n/).filter(x=>x.trim()).slice(0,40),candidates=[";",",","\t"];
+ // Puntúa separadores en varias filas, no solo en la primera línea del reporte,
+ // que normalmente contiene el título y no los encabezados.
+ return candidates.map(delim=>{let counts=lines.map(line=>{let q=false,n=0;for(let i=0;i<line.length;i++){if(line[i]==='"'){if(q&&line[i+1]==='"'){i++;}else q=!q}else if(line[i]===delim&&!q)n++}return n}).filter(n=>n>0);let total=counts.reduce((a,b)=>a+b,0),consistent=counts.length?counts.filter(n=>n===Math.max(...counts)).length:0;return {delim,total,consistent}}).sort((a,b)=>b.total-a.total||b.consistent-a.consistent)[0].delim;
+}
 function parseCSV(text){
  text=text.replace(/^\uFEFF/,"");
- const first=text.split(/\r?\n/).find(x=>x.trim())||"";
- const candidates=[";",",","\t"];const delim=candidates.sort((a,b)=>(first.split(b).length-first.split(a).length))[0];
+ const delim=detectDelimiter(text);
  const rows=[];let row=[],field="",quoted=false;
  for(let i=0;i<text.length;i++){const c=text[i];if(c==='"'){if(quoted&&text[i+1]==='"'){field+='"';i++}else quoted=!quoted}else if(c===delim&&!quoted){row.push(field);field=""}else if((c==="\n"||c==="\r")&&!quoted){if(c==="\r"&&text[i+1]==="\n")i++;row.push(field);if(row.some(x=>String(x).trim()))rows.push(row);row=[];field=""}else field+=c}
  row.push(field);if(row.some(x=>String(x).trim()))rows.push(row);return rows
 }
-function locateHeader(rows,required){for(let i=0;i<Math.min(rows.length,30);i++){const cells=rows[i].map(norm);if(required.every(x=>cells.includes(norm(x))))return i}return -1}
+function locateHeader(rows,required){
+ const aliases={"tipo documento":["tipo documento","tipo de documento","documento","tipo doc"]};
+ const matches=(cells,want)=>{const variants=aliases[want]||[want];return variants.some(v=>cells.includes(norm(v)))};
+ for(let i=0;i<Math.min(rows.length,60);i++){const cells=rows[i].map(norm);if(required.every(x=>matches(cells,norm(x))))return i}
+ return -1
+}
 function readConsumption(text){
  const rows=parseCSV(text),header=locateHeader(rows,["Código","Cantidad","Tipo Documento"]);
- if(header<0)throw Error("No se encontró una fila de encabezados con Código, cantidad y Tipo Documento en el CSV.");
+ if(header<0)throw Error("No se reconocieron automáticamente los encabezados del CSV. Se buscaron Código, Cantidad y Tipo Documento entre las primeras 60 filas. Verifica que el archivo sea el reporte de salidas y que conserve sus encabezados.");
  const h=rows[header].map(norm),idx={code:h.indexOf("codigo"),qty:h.indexOf("cantidad"),type:h.indexOf("tipo documento")};
  const periodMatch=text.match(/desde\s+(\d{1,2}[\/.-]\d{1,2}[\/.-]\d{4})\s+hasta\s+(\d{1,2}[\/.-]\d{1,2}[\/.-]\d{4})/i);
  const start=periodMatch?parseDate(periodMatch[1]):null,end=periodMatch?parseDate(periodMatch[2]):null;
@@ -42,7 +52,16 @@ function readStock(workbook){
 }
 function renderDocs(){const box=$("docOptions");box.innerHTML="";consumoData.types.forEach((t,i)=>{const label=document.createElement("label");label.className="option";const cb=document.createElement("input");cb.type="checkbox";cb.value=t;cb.checked=true;cb.addEventListener("change",updateDocCount);const span=document.createElement("span");span.textContent=t;label.append(cb,span);box.append(label)});updateDocCount();$("consumoConfig").classList.remove("hidden")}
 function updateDocCount(){const n=[...$("docOptions").querySelectorAll("input:checked")].length;$("docCount").textContent=`${n} de ${consumoData?.types.length||0} seleccionados`}
-function renderWarehouses(){for(const id of ["pharmacyWarehouse","warehouseStock"]){const s=$(id);s.innerHTML='<option value="">Seleccionar bodega…</option>';stockData.warehouses.forEach(w=>{const o=document.createElement("option");o.value=w;o.textContent=w;s.append(o)})} $("stockConfig").classList.remove("hidden")}
+function renderWarehouses(){
+ for(const id of ["pharmacyWarehouse","warehouseStock"]){const s=$(id);s.innerHTML='<option value="">Seleccionar bodega…</option>';stockData.warehouses.forEach(w=>{const o=document.createElement("option");o.value=w;o.textContent=w;s.append(o)})}
+ // Sugerencias automáticas: “Farmacia Activa” -> Stock Farmacia;
+ // “Bodega Farmacia” -> Stock Bodega. No se asigna la misma bodega dos veces.
+ const pharmacyGuess=stockData.warehouses.find(w=>{const n=norm(w);return n.includes("farmacia")&&!n.includes("bodega")});
+ const warehouseGuess=stockData.warehouses.find(w=>{const n=norm(w);return n.includes("bodega")&&n.includes("farmacia")});
+ if(pharmacyGuess)$("pharmacyWarehouse").value=pharmacyGuess;
+ if(warehouseGuess&&warehouseGuess!==pharmacyGuess)$("warehouseStock").value=warehouseGuess;
+ $("stockConfig").classList.remove("hidden")
+}
 function setNotice(el,msg,kind){el.textContent=msg;el.className="notice "+kind}
 function validateDates(){
  if(consumoData){const prev=localStorage.getItem(STORAGE_KEY);if(consumoData.end){let msg=`Período detectado: ${fmtDate(consumoData.start)} hasta ${fmtDate(consumoData.end)}.`;if(prev&&dateKey(consumoData.end)<prev)msg+=` ALERTA: la fecha “hasta” (${dateKey(consumoData.end)}) es anterior al último reporte procesado (${prev}). Se permitirá continuar bajo tu responsabilidad.`;setNotice($("periodInfo"),msg,prev&&dateKey(consumoData.end)<prev?"warning":"success")}else setNotice($("periodInfo"),"No se pudo detectar el período “desde… hasta…” en el encabezado. Revisa el archivo antes de procesar.","warning")}

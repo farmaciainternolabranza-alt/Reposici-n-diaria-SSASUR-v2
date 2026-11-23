@@ -112,19 +112,22 @@
   function updateModeAvailability(errorMessage = "") {
     const pharmacy = pharmacySelect?.value || "";
     const warehouse = warehouseSelect?.value || "";
-    const validSelection = pharmacy && warehouse && pharmacy !== warehouse;
     const hasFiles = Boolean(stockInput?.files?.length && consumptionInput?.files?.length);
+    const validSelection = Boolean(pharmacy && warehouse && pharmacy !== warehouse);
     if (generateButton) generateButton.disabled = !validSelection || !stockRecords.length || !hasFiles;
     const info = $("drogueriaStockInfo");
     if (!info) return;
     if (errorMessage) {
       info.textContent = errorMessage;
       info.className = "notice error";
-    } else if (!pharmacy || !warehouse) {
-      info.textContent = "Asigna Stock Farmacia y Stock Bodega en la sección 3 para calcular su suma como Stock CESFAM.";
+    } else if (!hasFiles) {
+      info.textContent = "Carga los mismos archivos de consumo y stock en la sección 1.";
       info.className = "notice warning";
-    } else if (pharmacy === warehouse) {
-      info.textContent = "Selecciona dos bodegas distintas en la sección 3.";
+    } else if (!stockRecords.length) {
+      info.textContent = "Leyendo el archivo de stock…";
+      info.className = "notice warning";
+    } else if (!validSelection) {
+      info.textContent = "Verifica que estén seleccionadas dos bodegas distintas en la sección 3.";
       info.className = "notice warning";
     } else {
       info.textContent = `Stock CESFAM = ${pharmacy} + ${warehouse}.`;
@@ -253,14 +256,15 @@
     ])];
     const csv = "\uFEFF" + rows.map(row => row.map(value => `"${String(value).replace(/"/g, '""')}"`).join(";")).join("\r\n");
     const link = document.createElement("a");
-    link.href = URL.createObjectURL(new Blob([csv], { type: "text/csv;charset=utf-8" }));
+    const url = URL.createObjectURL(new Blob([csv], { type: "text/csv;charset=utf-8" }));
+    link.href = url;
     link.download = "reporte_drogueria.csv";
     link.click();
-    URL.revokeObjectURL(link.href);
+    URL.revokeObjectURL(url);
   }
 
   modeButton?.addEventListener("click", () => modeSwitch(!isDrogueria));
-  stockInput?.addEventListener("change", () => { stockRecords = []; stockDate = null; loadStock(); });
+  stockInput?.addEventListener("change", () => { stockRecords = []; stockDate = null; updateModeAvailability(); loadStock(); });
   consumptionInput?.addEventListener("change", updateModeAvailability);
   pharmacySelect?.addEventListener("change", updateModeAvailability);
   warehouseSelect?.addEventListener("change", updateModeAvailability);

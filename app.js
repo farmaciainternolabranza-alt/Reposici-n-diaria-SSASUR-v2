@@ -31,14 +31,24 @@ function locateHeader(rows,required){
  for(let i=0;i<Math.min(rows.length,60);i++){const cells=rows[i].map(norm);if(required.every(x=>matches(cells,norm(x))))return i}
  return -1
 }
-function readConsumption(text){
- const rows=parseCSV(text),header=locateHeader(rows,["Código","Cantidad","Tipo Documento"]);
- if(header<0)throw Error("No se reconocieron automáticamente los encabezados del CSV. Se buscaron Código, Cantidad y Tipo Documento entre las primeras 60 filas. Verifica que el archivo sea el reporte de salidas y que conserve sus encabezados.");
- const h=rows[header].map(norm),idx={code:h.indexOf("codigo"),qty:h.indexOf("cantidad"),type:h.indexOf("tipo documento")};
- const periodMatch=text.match(/desde\s+(\d{1,2}[\/.-]\d{1,2}[\/.-]\d{4})\s+hasta\s+(\d{1,2}[\/.-]\d{1,2}[\/.-]\d{4})/i);
+function readConsumptionRows(rows,metaText=""){
+ const header=locateHeader(rows,["Código","Cantidad","Tipo Documento"]);
+ if(header<0)throw Error("No se reconocieron los encabezados del reporte de salidas. Se buscaron Código, Cantidad y Tipo Documento entre las primeras 60 filas. Verifica que el archivo conserve sus encabezados.");
+ const h=rows[header].map(norm);
+ const find=(names)=>h.findIndex(x=>names.includes(x));
+ const idx={code:find(["codigo"]),qty:find(["cantidad"]),type:find(["tipo documento","tipo de documento","documento","tipo doc"])};
+ if(Object.values(idx).some(x=>x<0))throw Error("Se encontró una fila de encabezados, pero falta alguna columna requerida: Código, Cantidad o Tipo Documento.");
+ const periodMatch=String(metaText).match(/desde\\s+(\\d{1,2}[\\/.-]\\d{1,2}[\\/.-]\\d{4})\\s+hasta\\s+(\\d{1,2}[\\/.-]\\d{1,2}[\\/.-]\\d{4})/i);
  const start=periodMatch?parseDate(periodMatch[1]):null,end=periodMatch?parseDate(periodMatch[2]):null;
  const records=rows.slice(header+1).map(r=>({code:cleanCode(r[idx.code]),qty:num(r[idx.qty]),type:String(r[idx.type]??"").trim()})).filter(r=>r.code&&r.type);
  return {records,start,end,types:[...new Set(records.map(r=>r.type))].sort((a,b)=>a.localeCompare(b,"es"))}
+}
+function readConsumption(text){return readConsumptionRows(parseCSV(text),text)}
+function readConsumptionWorkbook(workbook){
+ const sheet=workbook.Sheets[workbook.SheetNames[0]];
+ const rows=XLSX.utils.sheet_to_json(sheet,{header:1,raw:true,defval:""});
+ const meta=rows.slice(0,60).flat().join(" ");
+ return readConsumptionRows(rows,meta);
 }
 function readStock(workbook){
  const sheet=workbook.Sheets[workbook.SheetNames[0]],rows=XLSX.utils.sheet_to_json(sheet,{header:1,raw:true,defval:""});
@@ -68,7 +78,7 @@ function validateDates(){
  if(stockData){const today=todayChile(),got=dateKey(stockData.obtained);if(!got)setNotice($("stockDateInfo"),"No se pudo detectar la fecha de obtención del stock. El procesamiento quedará bloqueado.","error");else if(got!==today)setNotice($("stockDateInfo"),`Stock obtenido el ${fmtDate(stockData.obtained)}. Hoy en Chile es ${today.split("-").reverse().join("/")}. No se permite procesar un stock que no sea de hoy.`,"error");else setNotice($("stockDateInfo"),`Stock obtenido hoy (${fmtDate(stockData.obtained)}). Validación correcta.`,"success")}
  $("generatePanel").classList.toggle("hidden",!(consumoData&&stockData));
 }
-async function loadConsumo(file){consumoFile=file;$("consumoName").textContent=file.name;try{const text=await file.text();consumoData=readConsumption(text);renderDocs();validateDates();setStatus(`Consumo leído: ${consumoData.records.length} registros y ${consumoData.types.length} tipos de documento.`,"success")}catch(e){consumoData=null;$("consumoConfig").classList.add("hidden");validateDates();setStatus(e.message,"error")}}
+async function loadConsumo(file){consumoFile=file;$("consumoName").textContent=file.name;try{if(/\\.xlsx?$/i.test(file.name)){if(!window.XLSX)throw Error("No se pudo cargar el lector Excel. Comprueba tu conexión a internet y recarga la página.");const buf=await file.arrayBuffer();const wb=XLSX.read(buf,{type:"array",cellDates:false});consumoData=readConsumptionWorkbook(wb)}else{const text=await file.text();consumoData=readConsumption(text)}renderDocs();validateDates();setStatus(`Consumo leído: ${consumoData.records.length} registros y ${consumoData.types.length} tipos de documento.`,"success")}catch(e){consumoData=null;$("consumoConfig").classList.add("hidden");validateDates();setStatus(e.message,"error")}}
 async function loadStock(file){stockFile=file;$("stockName").textContent=file.name;try{if(!window.XLSX)throw Error("No se pudo cargar el lector Excel. Comprueba tu conexión a internet y recarga la página.");const buf=await file.arrayBuffer();const wb=XLSX.read(buf,{type:"array",cellDates:false});stockData=readStock(wb);renderWarehouses();validateDates();setStatus(`Stock leído: ${stockData.records.length} registros y ${stockData.warehouses.length} bodegas detectadas.`,"success")}catch(e){stockData=null;$("stockConfig").classList.add("hidden");validateDates();setStatus(e.message,"error")}}
 function setupDrop(inputId,dropId,loader){const input=$(inputId),drop=$(dropId);input.addEventListener("change",()=>{if(input.files[0])loader(input.files[0])});["dragenter","dragover"].forEach(ev=>drop.addEventListener(ev,e=>{e.preventDefault();drop.classList.add("drag")}));["dragleave","drop"].forEach(ev=>drop.addEventListener(ev,e=>{e.preventDefault();drop.classList.remove("drag")}));drop.addEventListener("drop",e=>{const f=e.dataTransfer.files[0];if(f)loader(f)})}
 function process(){

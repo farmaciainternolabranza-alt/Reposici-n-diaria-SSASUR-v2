@@ -6,6 +6,7 @@
   <meta name="theme-color" content="#17445c">
   <title>Informe de cobertura y reposición</title>
   <link rel="stylesheet" href="styles.css">
+  <link rel="stylesheet" href="enhancements.css">
   <!-- SheetJS se utiliza únicamente para leer archivos XLSX en el navegador. -->
   <script src="https://cdn.jsdelivr.net/npm/xlsx@0.18.5/dist/xlsx.full.min.js"></script>
 </head>
@@ -39,7 +40,7 @@
 
   <section class="panel hidden" id="consumoConfig">
     <h2>2. Tipos de documentos considerados como consumo</h2>
-    <p class="muted">Las opciones se detectan automáticamente desde la columna “Tipo Documento”. Selecciona uno o más tipos.</p>
+    <p class="muted">Las opciones se detectan automáticamente desde la columna “Tipo Documento”. Por defecto solo se seleccionan las recetas; puedes marcar otros tipos si los necesitas.</p>
     <div class="toolbar">
       <button type="button" class="secondary" id="selectAllDocs">Seleccionar todos</button>
       <button type="button" class="secondary" id="clearDocs">Limpiar selección</button>
@@ -74,6 +75,15 @@
       <div><h2>Informe de cobertura y reposición</h2><p id="resultSubtitle" class="muted"></p></div>
       <div class="actions"><button class="secondary" id="printBtn">Imprimir</button><button class="secondary" id="csvBtn">Descargar CSV</button></div>
     </div>
+    <nav class="report-tabs" aria-label="Vistas del informe">
+      <button type="button" class="report-tab active" id="reportTab" aria-selected="true">Informe</button>
+      <button type="button" class="report-tab" id="productSearchTab" aria-selected="false">Buscador de producto</button>
+    </nav>
+    <div id="productSearchPanel" class="product-search hidden">
+      <label for="productSearchInput">Buscar por nombre o código de producto</label>
+      <input id="productSearchInput" type="search" placeholder="Escribe el nombre o código…" autocomplete="off">
+      <p id="productSearchMessage" class="muted small" aria-live="polite"></p>
+    </div>
     <div class="summary" id="summary"></div>
     <div class="table-wrap">
       <table id="resultsTable">
@@ -81,10 +91,11 @@
         <tbody></tbody>
       </table>
     </div>
-    <p class="muted small">La columna “Cantidad a reponer” queda en blanco para completar manualmente después de imprimir.</p>
+    <p class="muted small print-hide">La columna “Cantidad a reponer” queda en blanco para completar manualmente después de imprimir.</p>
   </section>
   <footer>Aplicación local · GitHub Pages · No almacena los archivos cargados</footer>
 </main>
 <script src="app.js"></script>
+<script src="enhancements.js"></script>
 </body>
 </html>

@@ -1,0 +1,90 @@
+<!doctype html>
+<html lang="es">
+<head>
+  <meta charset="utf-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1">
+  <meta name="theme-color" content="#17445c">
+  <title>Informe de cobertura y reposición</title>
+  <link rel="stylesheet" href="styles.css">
+  <!-- SheetJS se utiliza únicamente para leer archivos XLSX en el navegador. -->
+  <script src="https://cdn.jsdelivr.net/npm/xlsx@0.18.5/dist/xlsx.full.min.js"></script>
+</head>
+<body>
+<header class="top">
+  <div class="wrap">
+    <div class="eyebrow">FARMACIA · CESFAM LABRANZA</div>
+    <h1>Informe de cobertura y reposición</h1>
+    <p>Consolidación de consumo y existencias por código de artículo</p>
+  </div>
+</header>
+<main class="wrap">
+  <section class="panel">
+    <h2>1. Cargar reportes</h2>
+    <div class="upload-grid">
+      <label class="drop" id="consumoDrop">
+        <input type="file" id="consumoFile" accept=".csv,.txt">
+        <span class="fileicon">CSV</span><strong>Reporte de consumo</strong>
+        <span>Arrastra el archivo aquí o haz clic para seleccionarlo</span>
+        <small id="consumoName">Archivo .csv</small>
+      </label>
+      <label class="drop" id="stockDrop">
+        <input type="file" id="stockFile" accept=".xlsx,.xls">
+        <span class="fileicon">XLSX</span><strong>Reporte de stock</strong>
+        <span>Arrastra el archivo aquí o haz clic para seleccionarlo</span>
+        <small id="stockName">Archivo .xlsx</small>
+      </label>
+    </div>
+    <div id="status" class="status" role="status">Carga ambos reportes para comenzar.</div>
+  </section>
+
+  <section class="panel hidden" id="consumoConfig">
+    <h2>2. Tipos de documentos considerados como consumo</h2>
+    <p class="muted">Las opciones se detectan automáticamente desde la columna “Tipo Documento”. Selecciona uno o más tipos.</p>
+    <div class="toolbar">
+      <button type="button" class="secondary" id="selectAllDocs">Seleccionar todos</button>
+      <button type="button" class="secondary" id="clearDocs">Limpiar selección</button>
+      <span id="docCount" class="muted"></span>
+    </div>
+    <div id="docOptions" class="options"></div>
+    <div id="periodInfo" class="notice"></div>
+  </section>
+
+  <section class="panel hidden" id="stockConfig">
+    <h2>3. Asignar bodegas</h2>
+    <p class="muted">Se detectan todas las bodegas del archivo. Debes asignar dos distintas; las demás quedan excluidas.</p>
+    <div class="select-grid">
+      <label>Stock Farmacia
+        <select id="pharmacyWarehouse"><option value="">Seleccionar bodega…</option></select>
+      </label>
+      <label>Stock Bodega
+        <select id="warehouseStock"><option value="">Seleccionar bodega…</option></select>
+      </label>
+    </div>
+    <div id="stockDateInfo" class="notice"></div>
+  </section>
+
+  <section class="panel hidden" id="generatePanel">
+    <h2>4. Generar informe</h2>
+    <button id="generate" class="primary" type="button">Procesar y generar informe</button>
+    <p class="muted small">Los archivos se procesan en este navegador. No se cargan a GitHub ni a otro servidor.</p>
+  </section>
+
+  <section class="panel hidden" id="resultsPanel">
+    <div class="result-head">
+      <div><h2>Informe de cobertura y reposición</h2><p id="resultSubtitle" class="muted"></p></div>
+      <div class="actions"><button class="secondary" id="printBtn">Imprimir</button><button class="secondary" id="csvBtn">Descargar CSV</button></div>
+    </div>
+    <div class="summary" id="summary"></div>
+    <div class="table-wrap">
+      <table id="resultsTable">
+        <thead><tr><th>#</th><th>Código</th><th>Artículo</th><th>Consumo</th><th>Stock Farmacia</th><th>Stock Bodega</th><th>Disponibilidad</th><th class="manual">Cantidad a reponer</th></tr></thead>
+        <tbody></tbody>
+      </table>
+    </div>
+    <p class="muted small">La columna “Cantidad a reponer” queda en blanco para completar manualmente después de imprimir.</p>
+  </section>
+  <footer>Aplicación local · GitHub Pages · No almacena los archivos cargados</footer>
+</main>
+<script src="app.js"></script>
+</body>
+</html>

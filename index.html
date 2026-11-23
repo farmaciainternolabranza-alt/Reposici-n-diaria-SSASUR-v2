@@ -13,6 +13,7 @@
 <body>
 <header class="top">
   <div class="wrap">
+    <button type="button" class="mode-switch" id="drogueriaModeBtn" aria-pressed="false">Droguería</button>
     <div class="eyebrow">FARMACIA · CESFAM LABRANZA</div>
     <h1>Informe de cobertura y reposición</h1>
     <p>Consolidación de consumo y existencias por código de artículo</p>
@@ -70,6 +71,27 @@
     <p class="muted small">Los archivos se procesan en este navegador. No se cargan a GitHub ni a otro servidor.</p>
   </section>
 
+  <section class="panel hidden" id="drogueriaConfig">
+    <h2>Modo Droguería · Stock CESFAM</h2>
+    <p class="muted">Selecciona las bodegas que se sumarán para calcular el stock total CESFAM. El consumo utiliza los tipos de documento seleccionados arriba (por defecto, recetas).</p>
+    <div id="drogueriaWarehouses" class="options" aria-label="Bodegas incluidas en Stock CESFAM"></div>
+    <div id="drogueriaStockInfo" class="notice"></div>
+    <button id="drogueriaGenerate" class="primary" type="button" disabled>Generar reporte Droguería</button>
+  </section>
+
+  <section class="panel hidden" id="drogueriaResultsPanel">
+    <div class="result-head">
+      <div><h2>Reporte Droguería</h2><p id="drogueriaSubtitle" class="muted"></p></div>
+      <div class="actions"><button class="secondary" id="drogueriaPrintBtn">Imprimir</button><button class="secondary" id="drogueriaCsvBtn">Descargar CSV</button></div>
+    </div>
+    <div class="table-wrap">
+      <table id="drogueriaTable">
+        <thead><tr><th>Artículo</th><th>Consumo</th><th>Stock CESFAM</th><th>Disponibilidad</th></tr></thead>
+        <tbody></tbody>
+      </table>
+    </div>
+  </section>
+
   <section class="panel hidden" id="resultsPanel">
     <div class="result-head">
       <div><h2>Informe de cobertura y reposición</h2><p id="resultSubtitle" class="muted"></p></div>
@@ -97,5 +119,6 @@
 </main>
 <script src="app.js"></script>
 <script src="enhancements.js"></script>
+<script src="drogueria.js"></script>
 </body>
 </html>

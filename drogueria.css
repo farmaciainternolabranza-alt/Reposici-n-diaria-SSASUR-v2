@@ -2,7 +2,6 @@
 .top .wrap{position:relative}
 .mode-switch{position:absolute;right:20px;top:10px;border:1px solid rgba(255,255,255,.35);border-radius:4px;padding:5px 9px;background:rgba(255,255,255,.09);color:rgba(255,255,255,.82);font:inherit;font-size:12px;cursor:pointer}
 .mode-switch:hover,.mode-switch[aria-pressed="true"]{background:#fff;color:#17445c}
-#drogueriaConfig .options{margin:12px 0 16px}
 #drogueriaConfig .primary:disabled{opacity:.55;cursor:not-allowed}
 #drogueriaTable{width:100%;table-layout:fixed}
 #drogueriaTable th,#drogueriaTable td{white-space:normal;overflow-wrap:anywhere;vertical-align:top}

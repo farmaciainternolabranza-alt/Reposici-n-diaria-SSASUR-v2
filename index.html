@@ -54,7 +54,7 @@
 
   <section class="panel hidden" id="stockConfig">
     <h2>3. Asignar bodegas</h2>
-    <p class="muted">Se detectan todas las bodegas del archivo. Debes asignar dos distintas; las demás quedan excluidas.</p>
+    <p class="muted">Se detectan todas las bodegas del archivo. Asigna las dos que se utilizarán en el informe.</p>
     <div class="select-grid">
       <label>Stock Farmacia
         <select id="pharmacyWarehouse"><option value="">Seleccionar bodega…</option></select>
@@ -74,8 +74,7 @@
 
   <section class="panel hidden" id="drogueriaConfig">
     <h2>Modo Droguería · Stock CESFAM</h2>
-    <p class="muted">Selecciona las bodegas que se sumarán para calcular el stock total CESFAM. El consumo utiliza los tipos de documento seleccionados arriba (por defecto, recetas).</p>
-    <div id="drogueriaWarehouses" class="options" aria-label="Bodegas incluidas en Stock CESFAM"></div>
+    <p class="muted">Utiliza los mismos archivos y bodegas seleccionadas arriba. El Stock CESFAM es la suma de Stock Farmacia + Stock Bodega. El consumo considera los tipos seleccionados (por defecto, recetas).</p>
     <div id="drogueriaStockInfo" class="notice"></div>
     <button id="drogueriaGenerate" class="primary" type="button" disabled>Generar reporte Droguería</button>
   </section>

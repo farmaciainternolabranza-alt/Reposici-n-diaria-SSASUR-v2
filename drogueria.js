@@ -4,10 +4,11 @@
   const modeButton = $("drogueriaModeBtn");
   const modeConfig = $("drogueriaConfig");
   const modeResults = $("drogueriaResultsPanel");
-  const warehouseList = $("drogueriaWarehouses");
   const generateButton = $("drogueriaGenerate");
   const stockInput = $("stockFile");
   const consumptionInput = $("consumoFile");
+  const pharmacySelect = $("pharmacyWarehouse");
+  const warehouseSelect = $("warehouseStock");
   const mainGeneratePanel = $("generatePanel");
   const mainResults = $("resultsPanel");
   let isDrogueria = false;
@@ -36,14 +37,13 @@
     return date.getFullYear() === +match[3] && date.getMonth() === +match[2] - 1 && date.getDate() === +match[1] ? date : null;
   };
   const formatDate = date => date ? date.toLocaleDateString("es-CL") : "No detectada";
+  const selectedDocTypes = () => new Set([...( $("docOptions")?.querySelectorAll("input:checked") || [])].map(input => input.value));
 
   function csvRows(text) {
-    const candidates = [";", ",", "\t"];
     const lines = text.split(/\r?\n/).filter(line => line.trim()).slice(0, 30);
-    const delimiter = candidates.map(delim => {
-      const count = lines.reduce((sum, line) => sum + (line.split(delim).length - 1), 0);
-      return { delim, count };
-    }).sort((a, b) => b.count - a.count)[0].delim;
+    const delimiters = [";", ",", "\t"];
+    const delimiter = delimiters.map(delim => ({ delim, score: lines.reduce((total, line) => total + line.split(delim).length - 1, 0) }))
+      .sort((a, b) => b.score - a.score)[0].delim;
     const rows = [];
     let row = [], field = "", quoted = false;
     for (let i = 0; i < text.length; i++) {
@@ -69,8 +69,7 @@
     if (/\.xlsx?$/i.test(file.name)) {
       if (!window.XLSX) throw new Error("No está disponible el lector Excel. Recarga la página con conexión a internet.");
       const workbook = XLSX.read(await file.arrayBuffer(), { type: "array", cellDates: false });
-      const sheet = workbook.Sheets[workbook.SheetNames[0]];
-      return XLSX.utils.sheet_to_json(sheet, { header: 1, raw: true, defval: "" });
+      return XLSX.utils.sheet_to_json(workbook.Sheets[workbook.SheetNames[0]], { header: 1, raw: true, defval: "" });
     }
     if (isConsumption) return csvRows((await file.text()).replace(/^\uFEFF/, ""));
     throw new Error("El archivo de stock debe estar en formato Excel (.xlsx o .xls).");
@@ -88,64 +87,49 @@
     throw new Error("No se reconocieron las columnas Código, Bodega y Cantidad del reporte de stock.");
   }
 
-  function getStockDate(rows, headerRow) {
-    const meta = rows.slice(0, headerRow).flat().join(" ");
-    const match = meta.match(/obtenido\s*:\s*(\d{1,2}[\/.-]\d{1,2}[\/.-]\d{4})/i);
-    return match ? parseDate(match[1]) : null;
-  }
-
   async function loadStock() {
     const file = stockInput?.files?.[0];
     if (!file) return;
     try {
       const rows = await getRows(file, false);
       const header = locateStockHeader(rows);
-      stockDate = getStockDate(rows, header.row);
+      const meta = rows.slice(0, header.row).flat().join(" ");
+      const dateMatch = meta.match(/obtenido\s*:\s*(\d{1,2}[\/.-]\d{1,2}[\/.-]\d{4})/i);
+      stockDate = dateMatch ? parseDate(dateMatch[1]) : null;
       stockRecords = rows.slice(header.row + 1).map(row => ({
         code: cleanCode(row[header.code]),
         warehouse: String(row[header.warehouse] ?? "").trim(),
         quantity: parseNumber(row[header.quantity]),
         description: header.description >= 0 ? String(row[header.description] ?? "").trim() : ""
       })).filter(row => row.code && row.warehouse);
-      renderWarehouses();
       updateModeAvailability();
     } catch (error) {
       stockRecords = [];
-      warehouseList.innerHTML = "";
-      updateModeAvailability();
-      const info = $("drogueriaStockInfo");
-      info.textContent = error.message;
-      info.className = "notice error";
+      updateModeAvailability(error.message);
     }
   }
 
-  function renderWarehouses() {
-    warehouseList.innerHTML = "";
-    const warehouses = [...new Set(stockRecords.map(record => record.warehouse))].sort((a, b) => a.localeCompare(b, "es"));
-    warehouses.forEach(warehouse => {
-      const label = document.createElement("label");
-      label.className = "option";
-      const checkbox = document.createElement("input");
-      checkbox.type = "checkbox";
-      checkbox.value = warehouse;
-      checkbox.addEventListener("change", updateModeAvailability);
-      const text = document.createElement("span");
-      text.textContent = warehouse;
-      label.append(checkbox, text);
-      warehouseList.append(label);
-    });
+  function updateModeAvailability(errorMessage = "") {
+    const pharmacy = pharmacySelect?.value || "";
+    const warehouse = warehouseSelect?.value || "";
+    const validSelection = pharmacy && warehouse && pharmacy !== warehouse;
+    const hasFiles = Boolean(stockInput?.files?.length && consumptionInput?.files?.length);
+    if (generateButton) generateButton.disabled = !validSelection || !stockRecords.length || !hasFiles;
     const info = $("drogueriaStockInfo");
-    info.textContent = stockDate ? `Fecha del stock: ${formatDate(stockDate)}.` : "No se detectó la fecha de obtención del stock en el archivo.";
-    info.className = `notice ${stockDate ? "success" : "warning"}`;
-  }
-
-  function updateModeAvailability() {
-    const selected = warehouseList ? warehouseList.querySelectorAll("input:checked").length : 0;
-    if (generateButton) generateButton.disabled = selected === 0 || !stockRecords.length || !consumptionInput?.files?.length;
-  }
-
-  function selectedDocumentTypes() {
-    return new Set([...( $("docOptions")?.querySelectorAll("input:checked") || [])].map(input => input.value));
+    if (!info) return;
+    if (errorMessage) {
+      info.textContent = errorMessage;
+      info.className = "notice error";
+    } else if (!pharmacy || !warehouse) {
+      info.textContent = "Asigna Stock Farmacia y Stock Bodega en la sección 3 para calcular su suma como Stock CESFAM.";
+      info.className = "notice warning";
+    } else if (pharmacy === warehouse) {
+      info.textContent = "Selecciona dos bodegas distintas en la sección 3.";
+      info.className = "notice warning";
+    } else {
+      info.textContent = `Stock CESFAM = ${pharmacy} + ${warehouse}.`;
+      info.className = "notice success";
+    }
   }
 
   function locateConsumptionHeader(rows) {
@@ -156,18 +140,16 @@
       const type = headers.findIndex(value => ["tipo documento", "tipo de documento", "documento", "tipo doc"].includes(value));
       if (code >= 0 && quantity >= 0 && type >= 0) return { row: i, code, quantity, type };
     }
-    // Conserva compatibilidad con el formato exportado que usa columnas E, H y J.
     const fallback = rows.slice(0, 60).findIndex(row => normalize(row[4]).includes("codigo") && normalize(row[7]).includes("cantidad") && /tipo|documento/.test(normalize(row[9])));
     if (fallback >= 0) return { row: fallback, code: 4, quantity: 7, type: 9 };
     throw new Error("No se encontraron las columnas Código, Cantidad y Tipo Documento en el reporte de consumo.");
   }
 
   async function readConsumption() {
-    const file = consumptionInput?.files?.[0];
-    const rows = await getRows(file, true);
+    const rows = await getRows(consumptionInput?.files?.[0], true);
     const header = locateConsumptionHeader(rows);
-    const periodText = rows.slice(0, header.row + 1).flat().join(" ");
-    const period = periodText.match(/desde\s+(\d{1,2}[\/.-]\d{1,2}[\/.-]\d{4})\s+hasta\s+(\d{1,2}[\/.-]\d{1,2}[\/.-]\d{4})/i);
+    const meta = rows.slice(0, header.row + 1).flat().join(" ");
+    const period = meta.match(/desde\s+(\d{1,2}[\/.-]\d{1,2}[\/.-]\d{4})\s+hasta\s+(\d{1,2}[\/.-]\d{1,2}[\/.-]\d{4})/i);
     const records = rows.slice(header.row + 1).map(row => ({
       code: cleanCode(row[header.code]),
       quantity: parseNumber(row[header.quantity]),
@@ -181,24 +163,31 @@
     document.body.classList.toggle("drogueria-active", enabled);
     modeButton?.setAttribute("aria-pressed", String(enabled));
     modeConfig?.classList.toggle("hidden", !enabled);
-    if (mainGeneratePanel) mainGeneratePanel.classList.toggle("hidden", enabled);
-    if (mainResults) mainResults.classList.toggle("hidden", enabled);
-    if (modeResults && !enabled) modeResults.classList.add("hidden");
-    if (enabled && stockInput?.files?.[0] && !stockRecords.length) loadStock();
+    mainGeneratePanel?.classList.toggle("hidden", enabled);
+    mainResults?.classList.toggle("hidden", enabled);
+    if (!enabled) modeResults?.classList.add("hidden");
     updateModeAvailability();
   }
 
   async function generateDrogueria() {
     try {
-      const selectedWarehouses = new Set([...(warehouseList?.querySelectorAll("input:checked") || [])].map(input => input.value));
-      if (!selectedWarehouses.size) throw new Error("Selecciona al menos una bodega para sumar en Stock CESFAM.");
-      if (stockDate) {
-        const today = new Intl.DateTimeFormat("en-CA", { timeZone: "America/Santiago", year: "numeric", month: "2-digit", day: "2-digit" }).format(new Date());
-        const stockDay = `${stockDate.getFullYear()}-${String(stockDate.getMonth() + 1).padStart(2, "0")}-${String(stockDate.getDate()).padStart(2, "0")}`;
-        if (stockDay !== today) throw new Error("El reporte de stock no fue obtenido hoy en Chile. Actualiza el archivo de stock para continuar.");
+      const pharmacy = pharmacySelect?.value || "";
+      const warehouse = warehouseSelect?.value || "";
+      if (!pharmacy || !warehouse || pharmacy === warehouse) {
+        throw new Error("Selecciona dos bodegas distintas en la sección 3: Stock Farmacia y Stock Bodega.");
       }
+      const today = new Intl.DateTimeFormat("en-CA", {
+        timeZone: "America/Santiago", year: "numeric", month: "2-digit", day: "2-digit"
+      }).format(new Date());
+      const stockDay = stockDate
+        ? `${stockDate.getFullYear()}-${String(stockDate.getMonth() + 1).padStart(2, "0")}-${String(stockDate.getDate()).padStart(2, "0")}`
+        : "";
+      if (!stockDay || stockDay !== today) {
+        throw new Error("El reporte de stock no fue obtenido hoy en Chile o no se pudo detectar su fecha. Actualiza el archivo de stock para continuar.");
+      }
+
       const consumption = await readConsumption();
-      const types = selectedDocumentTypes();
+      const types = selectedDocTypes();
       if (!types.size) throw new Error("Selecciona al menos un tipo de documento para calcular el consumo.");
 
       const consumptionByCode = new Map();
@@ -209,20 +198,20 @@
       const descriptions = new Map();
       stockRecords.forEach(record => {
         if (record.description && !descriptions.has(record.code)) descriptions.set(record.code, record.description);
-        if (!selectedWarehouses.has(record.warehouse)) return;
+        if (record.warehouse !== pharmacy && record.warehouse !== warehouse) return;
         stockByCode.set(record.code, (stockByCode.get(record.code) || 0) + record.quantity);
       });
 
       const codes = new Set([...consumptionByCode.keys(), ...stockByCode.keys()]);
       productRows = [...codes].map(code => {
-        const consumed = consumptionByCode.get(code) || 0;
-        const stock = stockByCode.get(code) || 0;
+        const consumptionValue = consumptionByCode.get(code) || 0;
+        const cesfamStock = stockByCode.get(code) || 0;
         return {
           code,
           article: descriptions.get(code) || code,
-          consumption: consumed,
-          stock,
-          availability: consumed > 0 ? stock / consumed * 100 : null
+          consumption: consumptionValue,
+          stock: cesfamStock,
+          availability: consumptionValue > 0 ? cesfamStock / consumptionValue * 100 : null
         };
       }).sort((a, b) => a.article.localeCompare(b.article, "es"));
 
@@ -244,8 +233,8 @@
         });
         tbody.append(tr);
       });
-      const selectedNames = [...selectedWarehouses].join(", ");
-      $("drogueriaSubtitle").textContent = `Consumo: ${formatDate(consumption.start)} al ${formatDate(consumption.end)} · Stock: ${formatDate(stockDate)} · Bodegas CESFAM: ${selectedNames}`;
+
+      $("drogueriaSubtitle").textContent = `Consumo: ${formatDate(consumption.start)} al ${formatDate(consumption.end)} · Stock: ${formatDate(stockDate)} · Stock CESFAM: ${pharmacy} + ${warehouse}`;
       modeResults?.classList.remove("hidden");
       modeResults?.scrollIntoView({ behavior: "smooth" });
     } catch (error) {
@@ -271,8 +260,10 @@
   }
 
   modeButton?.addEventListener("click", () => modeSwitch(!isDrogueria));
-  stockInput?.addEventListener("change", () => { stockRecords = []; loadStock(); });
+  stockInput?.addEventListener("change", () => { stockRecords = []; stockDate = null; loadStock(); });
   consumptionInput?.addEventListener("change", updateModeAvailability);
+  pharmacySelect?.addEventListener("change", updateModeAvailability);
+  warehouseSelect?.addEventListener("change", updateModeAvailability);
   $("docOptions")?.addEventListener("change", updateModeAvailability);
   generateButton?.addEventListener("click", generateDrogueria);
   $("drogueriaPrintBtn")?.addEventListener("click", () => window.print());
